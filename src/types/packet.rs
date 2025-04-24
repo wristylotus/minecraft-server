@@ -1,0 +1,46 @@
+use crate::types::VarInt;
+use bytes::{BufMut, Bytes, BytesMut};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+
+pub struct Packet {
+    pub length: usize,
+    pub id: i32,
+    pub data: Bytes,
+}
+
+impl Packet {
+    pub fn new(id: i32, data: Bytes) -> Self {
+        let mut buf = BytesMut::new();
+        VarInt::write(id, &mut buf).expect("write to varint");
+        let length = buf.len() + data.len();
+
+        Self { length, id, data }
+    }
+
+    pub async fn read(stream: &mut TcpStream) -> anyhow::Result<Self> {
+        let length = VarInt::read_stream(stream).await? as usize;
+
+        let mut data = BytesMut::zeroed(length);
+        stream.read_exact(&mut data).await?;
+
+        let (id, data) = VarInt::read(data.into())?;
+
+        Ok(Self { length, id, data })
+    }
+
+    pub async fn send(&self, stream: &mut TcpStream) -> anyhow::Result<()> {
+        let mut packet_buf = BytesMut::new();
+
+        // Write length of the packet
+        VarInt::write(self.length as i32, &mut packet_buf)?;
+        // Write ID of the packet
+        VarInt::write(self.id, &mut packet_buf)?;
+        // Write the packet data
+        packet_buf.put_slice(&self.data);
+        // Send the packet
+        stream.write_all(&packet_buf).await?;
+
+        Ok(())
+    }
+}
