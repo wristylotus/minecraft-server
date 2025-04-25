@@ -1,4 +1,4 @@
-use crate::types::VarInt;
+use crate::protocol::types::VarInt;
 use bytes::{Bytes, BytesMut};
 use std::fmt::Write;
 
@@ -6,13 +6,12 @@ pub struct MCString;
 
 impl MCString {
     const MAX_LENGTH: usize = 32767;
-    pub fn read(buf: Bytes) -> anyhow::Result<(String, Bytes)> {
-        let (length, buf) = VarInt::read(buf)?;
+    pub fn read(buf: &mut Bytes) -> anyhow::Result<String> {
+        let length = VarInt::read(buf)? as usize;
 
-        let data = Vec::from(&buf[..length as usize]);
-        let buf = Bytes::copy_from_slice(&buf[length as usize..]);
+        let value = buf.split_to(length).to_vec();
 
-        Ok((String::from_utf8(data)?, buf))
+        Ok(String::from_utf8(value)?)
     }
 
     pub fn write(value: &str, buf: &mut BytesMut) -> anyhow::Result<()> {
