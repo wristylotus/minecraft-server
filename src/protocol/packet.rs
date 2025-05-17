@@ -39,6 +39,7 @@ impl Packet {
         packet_buf.put_slice(&self.data);
         // Send the packet
         stream.write_all(&packet_buf).await?;
+        stream.flush().await?;
 
         Ok(())
     }
