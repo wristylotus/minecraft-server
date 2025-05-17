@@ -1,6 +1,8 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use clap::Parser;
-use minecraft_server::protocol::{ClientConnection, ClientState};
+use minecraft_server::connection::request::{ReadRequest, Request};
+use minecraft_server::connection::response::{Response, SendResponse};
+use minecraft_server::connection::{ClientConnection, ClientState};
 use tokio::net::TcpListener;
 
 #[derive(Parser, Debug)]
@@ -21,10 +23,11 @@ async fn main() -> Result<()> {
 
     loop {
         let (stream, addr) = listener.accept().await?;
-        println!("Connection with: {}:{}", addr.ip(), addr.port());
+        println!("Connection with: {}", addr);
         let mut conn = ClientConnection::new(stream)?;
 
-        handle_handshake_request(&mut conn).await?;
+        let handshake = conn.handshake().await?;
+        println!("{:?}", handshake);
 
         loop {
             match &conn.state {
@@ -36,45 +39,22 @@ async fn main() -> Result<()> {
                 ClientState::Configuration => handle_configuration_request(&mut conn).await?,
                 ClientState::Play => bail!("Play is not implemented"),
             }
-            println!(
-                "###############################################################################"
-            );
+            println!("###############################################################################");
         }
+
         println!("Close connection with: {}:{}", addr.ip(), addr.port());
         println!("-------------------------------------------------------------------------------");
     }
 }
 
-async fn handle_handshake_request(conn: &mut ClientConnection) -> Result<()> {
-    let packet_id = conn.reader.packet_id().await?;
-
-    if packet_id == 0x00 {
-        let protocol_ver = conn.reader.read_varint().await?;
-        println!("Protocol version: {}", protocol_ver);
-
-        let server_addr = conn.reader.read_string().await?;
-        println!("Server address: {}", server_addr);
-
-        let port = conn.reader.read_u16().await?;
-        println!("Server port: {}", port);
-
-        let state = ClientState::from(conn.reader.read_varint().await?)?;
-        println!("Next state: {}", state);
-        conn.state = state;
-    } else {
-        bail!("Unexpected packet ID 0x{:02X}", packet_id);
-    }
-
-    Ok(())
-}
-
 async fn handle_status_request(conn: &mut ClientConnection) -> Result<()> {
-    loop {
-        let packet_id = conn.reader.packet_id().await?;
-
-        match packet_id {
-            0x00 => {
-                let response = r#"{
+    'end_status: loop {
+        match conn.read_request().await {
+            Ok(Request::Status { id }) => {
+                let response = Response::Status {
+                    id,
+                    cluster_info: String::from(
+                        r#"{
                     "version": {
                         "name": "1.21.5",
                         "protocol": 770
@@ -87,20 +67,20 @@ async fn handle_status_request(conn: &mut ClientConnection) -> Result<()> {
                     "description": {
                         "text": "Rust Minecraft Server"
                     }
-                }"#;
-                conn.writer.write_string(&response)?;
-                conn.writer.send_packet(packet_id).await?;
+                }"#,
+                    ),
+                };
+                conn.send_response(response).await?;
             }
-            0x01 => {
-                let timestamp = conn.reader.read_i64().await?;
-                conn.writer.write_i64(timestamp)?;
-                conn.writer.send_packet(packet_id).await?;
-
-                return Ok(());
+            Ok(Request::Ping { id, timestamp }) => {
+                conn.send_response(Response::Pong { id, timestamp }).await?;
+                break 'end_status;
             }
-            _ => bail!("Unexpected packet ID 0x{:02X}", packet_id),
+            Err(err) => bail!(err),
         }
     }
+
+    Ok(())
 }
 
 async fn handle_login_request(conn: &mut ClientConnection) -> Result<()> {
@@ -122,9 +102,9 @@ async fn handle_login_request(conn: &mut ClientConnection) -> Result<()> {
     conn.writer.send_packet(0x02).await?;
 
     if conn.reader.packet_id().await? == 0x03 {
-        println!("Login Acknowledged")
+        println!("Login Acknowledged");
+        conn.state = ClientState::Configuration;
     }
-    conn.state = ClientState::Configuration;
 
     Ok(())
 }
