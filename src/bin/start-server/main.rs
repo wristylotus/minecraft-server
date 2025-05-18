@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
                 }
                 ClientState::Login => handle_login_request(&mut conn).await?,
                 ClientState::Configuration => handle_configuration_request(&mut conn).await?,
-                ClientState::Play => bail!("Play is not implemented"),
+                ClientState::Play => handle_play_request(&mut conn).await?,
             }
             println!("###############################################################################");
         }
@@ -50,9 +50,8 @@ async fn main() -> Result<()> {
 async fn handle_status_request(conn: &mut ClientConnection) -> Result<()> {
     'end_status: loop {
         match conn.read_request().await {
-            Ok(Request::Status { id }) => {
+            Ok(Request::Status { .. }) => {
                 let response = Response::Status {
-                    id,
                     cluster_info: String::from(
                         r#"{
                     "version": {
@@ -72,10 +71,11 @@ async fn handle_status_request(conn: &mut ClientConnection) -> Result<()> {
                 };
                 conn.send_response(response).await?;
             }
-            Ok(Request::Ping { id, timestamp }) => {
-                conn.send_response(Response::Pong { id, timestamp }).await?;
+            Ok(Request::Ping { timestamp, .. }) => {
+                conn.send_response(Response::LoginPong { timestamp }).await?;
                 break 'end_status;
             }
+            Ok(req) => bail!("Request '{:?}' not expected in Status state", req),
             Err(err) => bail!(err),
         }
     }
@@ -84,61 +84,59 @@ async fn handle_status_request(conn: &mut ClientConnection) -> Result<()> {
 }
 
 async fn handle_login_request(conn: &mut ClientConnection) -> Result<()> {
-    let username = conn.reader.read_string().await?;
-    println!("Username: {}", username);
-    let uuid = conn.reader.read_uuid().await?;
-    println!("UUID: {}", uuid);
+    match conn.read_request().await {
+        Ok(Request::LoginStart { username, uuid, .. }) => {
+            println!("Username: {}", username);
+            println!("UUID: {}", uuid);
 
-    if username != "wristylotus" {
-        conn.writer
-            .write_string(r#"{text: "I don't know you, fuck off!", color: "red"}"#)?;
-        conn.writer.send_packet(0x00).await?;
-    }
-
-    println!("Login Success");
-    conn.writer.write_uuid(uuid)?;
-    conn.writer.write_string(&username)?;
-    conn.writer.write_varint(0)?;
-    conn.writer.send_packet(0x02).await?;
-
-    if conn.reader.packet_id().await? == 0x03 {
-        println!("Login Acknowledged");
-        conn.state = ClientState::Configuration;
+            if username != "wristylotus" {
+                conn.send_response(Response::LoginDisconnect {
+                    message: String::from(r#"{text: "I don't know you, fuck off!", color: "red"}"#),
+                })
+                .await?;
+            } else {
+                conn.send_response(Response::LoginSuccess {
+                    uuid,
+                    username: String::from(username),
+                })
+                .await?;
+            }
+        }
+        Ok(Request::LoginAcknowledged { .. }) => {
+            println!("Login Acknowledged");
+            conn.state = ClientState::Configuration;
+        }
+        Ok(req) => bail!("Request '{:?}' not expected in Login state", req),
+        Err(err) => bail!(err),
     }
 
     Ok(())
 }
 
 async fn handle_configuration_request(conn: &mut ClientConnection) -> Result<()> {
-    let packet_id = conn.reader.packet_id().await?;
-
-    match packet_id {
-        0x00 => {
-            // Client Information (configuration)
-            println!("Locale: {}", conn.reader.read_string().await?);
-            println!("View Distance: {}", conn.reader.read_i8().await?);
-            println!("Chat mode: {}", conn.reader.read_varint().await?);
-            println!("Chat colors: {}", conn.reader.read_bool().await?);
-            println!("Displayed Skin Parts: {:#b}", conn.reader.read_u8().await?);
-            println!("Main Hand : {}", conn.reader.read_varint().await?);
-            println!("Enable text filtering: {}", conn.reader.read_bool().await?);
-            println!("Allow server listings: {}", conn.reader.read_bool().await?);
-            println!("Particle Status: {}", conn.reader.read_varint().await?);
-
-            // conn.writer.send_packet(0x03).await?;
-
-            // TODO
-            conn.writer
-                .write_nbt_string("Disconnect: This section is not implemented")?;
-            conn.writer.send_packet(0x02).await?;
-            bail!("This section is not implemented");
+    match conn.read_request().await {
+        Ok(req @ Request::ClientConfiguration { .. }) => {
+            println!("{:?}", req);
+            conn.send_response(Response::ConfigurationFinish).await?;
         }
-        0x02 => {
-            // Server bound Plugin Message (configuration)
-            println!("Channel: {}", conn.reader.read_string().await?);
-            println!("Data: {}", conn.reader.read_string().await?);
+        Ok(req @ Request::PluginMessage { .. }) => {
+            println!("{:?}", req);
         }
-        _ => bail!("Unexpected packet ID 0x{:02X}", packet_id),
+        Ok(Request::AcknowledgeFinishConfiguration { .. }) => {
+            conn.state = ClientState::Play;
+        }
+        Ok(req) => bail!("Request '{:?}' not expected in Configuration state", req),
+        Err(err) => bail!(err),
+    }
+
+    Ok(())
+}
+
+async fn handle_play_request(conn: &mut ClientConnection) -> Result<()> {
+    //TODO Generate world
+    match conn.read_request().await {
+        Ok(req) => bail!("Request '{:?}' not expected in Configuration state", req),
+        Err(err) => bail!(err),
     }
 
     Ok(())
