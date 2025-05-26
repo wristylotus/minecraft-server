@@ -1,18 +1,17 @@
 use crate::protocol::packet::Packet;
-use crate::protocol::types::{I64, MCString, UUID, VarInt, NBTString};
+use crate::protocol::types::{MCString, NBTString, VarInt, I64, UUID};
 use bytes::BytesMut;
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
-use tokio::net::TcpStream;
+use std::cell::Cell;
+use tokio::net::tcp::WriteHalf;
 use uuid::Uuid;
 
-pub struct ProtocolWriter {
-    stream: Rc<RefCell<TcpStream>>,
+pub struct ProtocolWriter<'a> {
+    stream: WriteHalf<'a>,
     buf: Cell<BytesMut>,
 }
 
-impl ProtocolWriter {
-    pub fn from_stream(stream: Rc<RefCell<TcpStream>>) -> anyhow::Result<Self> {
+impl<'a> ProtocolWriter<'a> {
+    pub fn from_stream(stream: WriteHalf<'a>) -> anyhow::Result<ProtocolWriter<'a>> {
         let reader = ProtocolWriter {
             stream,
             buf: Cell::new(BytesMut::new()),
@@ -45,6 +44,6 @@ impl ProtocolWriter {
         let packet = Packet::new(id, self.buf.take().into());
         self.buf.set(BytesMut::new());
 
-        packet.send(&mut self.stream.borrow_mut()).await
+        packet.send(&mut self.stream).await
     }
 }

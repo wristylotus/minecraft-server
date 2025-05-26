@@ -3,7 +3,8 @@ use clap::Parser;
 use minecraft_server::connection::request::{ReadRequest, Request};
 use minecraft_server::connection::response::{Response, SendResponse};
 use minecraft_server::connection::{ClientConnection, ClientState};
-use tokio::net::TcpListener;
+use std::net::SocketAddr;
+use tokio::net::{TcpListener, TcpStream};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -23,31 +24,40 @@ async fn main() -> Result<()> {
 
     loop {
         let (stream, addr) = listener.accept().await?;
-        println!("Connection with: {}", addr);
-        let mut conn = ClientConnection::new(stream)?;
 
-        let handshake = conn.handshake().await?;
-        println!("{:?}", handshake);
-
-        loop {
-            match &conn.state {
-                ClientState::Status => {
-                    handle_status_request(&mut conn).await?;
-                    break;
-                }
-                ClientState::Login => handle_login_request(&mut conn).await?,
-                ClientState::Configuration => handle_configuration_request(&mut conn).await?,
-                ClientState::Play => handle_play_request(&mut conn).await?,
-            }
-            println!("###############################################################################");
-        }
-
-        println!("Close connection with: {}:{}", addr.ip(), addr.port());
-        println!("-------------------------------------------------------------------------------");
+        tokio::spawn(async move {
+            process(stream, addr).await.expect("process failed");
+        });
     }
 }
 
-async fn handle_status_request(conn: &mut ClientConnection) -> Result<()> {
+async fn process(mut stream: TcpStream, addr: SocketAddr) -> Result<()> {
+    println!("Connection with: {}", addr);
+    let mut conn = ClientConnection::new(&mut stream)?;
+
+    let handshake = conn.handshake().await?;
+    println!("{:?}", handshake);
+
+    loop {
+        match &conn.state {
+            ClientState::Status => {
+                handle_status_request(&mut conn).await?;
+                break;
+            }
+            ClientState::Login => handle_login_request(&mut conn).await?,
+            ClientState::Configuration => handle_configuration_request(&mut conn).await?,
+            ClientState::Play => handle_play_request(&mut conn).await?,
+        }
+        println!("###############################################################################");
+    }
+
+    println!("Close connection with: {}:{}", addr.ip(), addr.port());
+    println!("-------------------------------------------------------------------------------");
+
+    Ok(())
+}
+
+async fn handle_status_request(conn: &mut ClientConnection<'_>) -> Result<()> {
     'end_status: loop {
         match conn.read_request().await {
             Ok(Request::Status { .. }) => {
@@ -83,7 +93,7 @@ async fn handle_status_request(conn: &mut ClientConnection) -> Result<()> {
     Ok(())
 }
 
-async fn handle_login_request(conn: &mut ClientConnection) -> Result<()> {
+async fn handle_login_request(conn: &mut ClientConnection<'_>) -> Result<()> {
     match conn.read_request().await {
         Ok(Request::LoginStart { username, uuid, .. }) => {
             println!("Username: {}", username);
@@ -113,7 +123,7 @@ async fn handle_login_request(conn: &mut ClientConnection) -> Result<()> {
     Ok(())
 }
 
-async fn handle_configuration_request(conn: &mut ClientConnection) -> Result<()> {
+async fn handle_configuration_request(conn: &mut ClientConnection<'_>) -> Result<()> {
     match conn.read_request().await {
         Ok(req @ Request::ClientConfiguration { .. }) => {
             println!("{:?}", req);
@@ -132,12 +142,10 @@ async fn handle_configuration_request(conn: &mut ClientConnection) -> Result<()>
     Ok(())
 }
 
-async fn handle_play_request(conn: &mut ClientConnection) -> Result<()> {
+async fn handle_play_request(conn: &mut ClientConnection<'_>) -> Result<()> {
     //TODO Generate world
     match conn.read_request().await {
         Ok(req) => bail!("Request '{:?}' not expected in Configuration state", req),
         Err(err) => bail!(err),
     }
-
-    Ok(())
 }

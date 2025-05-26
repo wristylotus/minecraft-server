@@ -16,7 +16,7 @@ pub trait SendResponse {
     async fn send_response(&mut self, response: Response) -> anyhow::Result<()>;
 }
 
-impl SendResponse for ClientConnection {
+impl SendResponse for ClientConnection<'_> {
     async fn send_response(&mut self, response: Response) -> anyhow::Result<()> {
         match response {
             Response::Status { cluster_info } => {

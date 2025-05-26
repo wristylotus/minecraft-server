@@ -1,7 +1,5 @@
 use crate::protocol::{ProtocolReader, ProtocolWriter};
 use anyhow::bail;
-use std::cell::RefCell;
-use std::rc::Rc;
 use tokio::net::TcpStream;
 
 pub mod request;
@@ -35,20 +33,20 @@ impl ClientState {
     }
 }
 
-pub struct ClientConnection {
+pub struct ClientConnection<'a> {
     pub state: ClientState,
-    pub reader: ProtocolReader,
-    pub writer: ProtocolWriter,
+    reader: ProtocolReader<'a>,
+    writer: ProtocolWriter<'a>,
 }
 
-impl ClientConnection {
-    pub fn new(stream: TcpStream) -> anyhow::Result<Self> {
-        let stream = Rc::new(RefCell::new(stream));
+impl<'a> ClientConnection<'a> {
+    pub fn new(stream: &'a mut TcpStream) -> anyhow::Result<Self> {
+        let (reader, writer) = stream.split();
 
         Ok(Self {
             state: ClientState::Status,
-            reader: ProtocolReader::from_stream(stream.clone())?,
-            writer: ProtocolWriter::from_stream(stream.clone())?,
+            reader: ProtocolReader::from_stream(reader)?,
+            writer: ProtocolWriter::from_stream(writer)?,
         })
     }
 

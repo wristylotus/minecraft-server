@@ -43,11 +43,11 @@ pub enum Request {
 
 pub trait ReadRequest {
     #[allow(async_fn_in_trait)]
-    async fn read_request(&self) -> anyhow::Result<Request>;
+    async fn read_request(&mut self) -> anyhow::Result<Request>;
 }
 
-impl ReadRequest for ClientConnection {
-    async fn read_request(&self) -> anyhow::Result<Request> {
+impl ReadRequest for ClientConnection<'_> {
+    async fn read_request(&mut self) -> anyhow::Result<Request> {
         let packet_id = self.reader.packet_id().await?;
 
         match (&self.state, packet_id) {

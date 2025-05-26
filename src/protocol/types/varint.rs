@@ -1,7 +1,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use thiserror::Error;
 use tokio::io::AsyncReadExt;
-use tokio::net::TcpStream;
+use tokio::net::tcp::ReadHalf;
 
 #[derive(Error, Debug)]
 pub enum VarIntErr {
@@ -13,7 +13,7 @@ pub struct VarInt;
 
 impl VarInt {
     pub const MAX_LEN: usize = 5;
-    pub async fn read_stream(stream: &mut TcpStream) -> anyhow::Result<i32> {
+    pub async fn read_stream(stream: &mut ReadHalf<'_>) -> anyhow::Result<i32> {
         let mut result = 0;
         let mut buf = [0u8; 1];
 

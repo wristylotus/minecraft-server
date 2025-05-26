@@ -1,7 +1,7 @@
 use crate::protocol::types::VarInt;
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
+use tokio::net::tcp::{ReadHalf, WriteHalf};
 
 pub struct Packet {
     pub length: usize,
@@ -16,7 +16,7 @@ impl Packet {
         Packet { length, id, data }
     }
 
-    pub async fn read(stream: &mut TcpStream) -> anyhow::Result<Self> {
+    pub async fn read(stream: &mut ReadHalf<'_>) -> anyhow::Result<Self> {
         let length = VarInt::read_stream(stream).await? as usize;
 
         let mut data = BytesMut::zeroed(length);
@@ -28,7 +28,7 @@ impl Packet {
         Ok(Packet { length, id, data })
     }
 
-    pub async fn send(&self, stream: &mut TcpStream) -> anyhow::Result<()> {
+    pub async fn send(&self, stream: &mut WriteHalf<'_>) -> anyhow::Result<()> {
         let mut packet_buf = BytesMut::with_capacity(self.length + VarInt::MAX_LEN);
 
         // Write length of the packet
