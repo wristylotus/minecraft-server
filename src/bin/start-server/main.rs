@@ -1,9 +1,9 @@
 use anyhow::{bail, Result};
 use clap::Parser;
+use log::{error, info};
 use minecraft_server::connection::request::{ReadRequest, Request};
 use minecraft_server::connection::response::{Response, SendResponse};
 use minecraft_server::connection::{ClientConnection, ClientState};
-use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 
 #[derive(Parser, Debug)]
@@ -17,6 +17,8 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::init();
+
     let args = Args::parse();
     let (host, port) = (args.host, args.port);
 
@@ -26,17 +28,22 @@ async fn main() -> Result<()> {
         let (stream, addr) = listener.accept().await?;
 
         tokio::spawn(async move {
-            process(stream, addr).await.expect("process failed");
+            info!("Connection with: {}", addr);
+
+            if let Err(e) = handle_connection(stream).await {
+                error!("Client: {}. Connection error: {}", addr, e);
+            } else {
+                info!("Close connection with client: {}", addr);
+            }
         });
     }
 }
 
-async fn process(mut stream: TcpStream, addr: SocketAddr) -> Result<()> {
-    println!("Connection with: {}", addr);
+async fn handle_connection(mut stream: TcpStream) -> Result<()> {
     let mut conn = ClientConnection::new(&mut stream)?;
 
     let handshake = conn.handshake().await?;
-    println!("{:?}", handshake);
+    info!("{:?}", handshake);
 
     loop {
         match &conn.state {
@@ -48,11 +55,7 @@ async fn process(mut stream: TcpStream, addr: SocketAddr) -> Result<()> {
             ClientState::Configuration => handle_configuration_request(&mut conn).await?,
             ClientState::Play => handle_play_request(&mut conn).await?,
         }
-        println!("###############################################################################");
     }
-
-    println!("Close connection with: {}:{}", addr.ip(), addr.port());
-    println!("-------------------------------------------------------------------------------");
 
     Ok(())
 }
@@ -96,8 +99,7 @@ async fn handle_status_request(conn: &mut ClientConnection<'_>) -> Result<()> {
 async fn handle_login_request(conn: &mut ClientConnection<'_>) -> Result<()> {
     match conn.read_request().await {
         Ok(Request::LoginStart { username, uuid, .. }) => {
-            println!("Username: {}", username);
-            println!("UUID: {}", uuid);
+            info!("Username: {}, UUID: {}", username, uuid);
 
             if username != "wristylotus" {
                 conn.send_response(Response::LoginDisconnect {
@@ -113,7 +115,7 @@ async fn handle_login_request(conn: &mut ClientConnection<'_>) -> Result<()> {
             }
         }
         Ok(Request::LoginAcknowledged { .. }) => {
-            println!("Login Acknowledged");
+            info!("Login Acknowledged");
             conn.state = ClientState::Configuration;
         }
         Ok(req) => bail!("Request '{:?}' not expected in Login state", req),
@@ -126,11 +128,11 @@ async fn handle_login_request(conn: &mut ClientConnection<'_>) -> Result<()> {
 async fn handle_configuration_request(conn: &mut ClientConnection<'_>) -> Result<()> {
     match conn.read_request().await {
         Ok(req @ Request::ClientConfiguration { .. }) => {
-            println!("{:?}", req);
+            info!("{:?}", req);
             conn.send_response(Response::ConfigurationFinish).await?;
         }
         Ok(req @ Request::PluginMessage { .. }) => {
-            println!("{:?}", req);
+            info!("{:?}", req);
         }
         Ok(Request::AcknowledgeFinishConfiguration { .. }) => {
             conn.state = ClientState::Play;
