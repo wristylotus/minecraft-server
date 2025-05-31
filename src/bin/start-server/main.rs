@@ -15,6 +15,21 @@ struct Args {
     port: u16,
 }
 
+const SERVER_INFO: &str = r#"{
+                    "version": {
+                        "name": "1.21.5",
+                        "protocol": 770
+                    },
+                    "players": {
+                        "max": 2,
+                        "online": 0,
+                        "sample": []
+                    },
+                    "description": {
+                        "text": "Rust Minecraft Server"
+                    }
+                }"#;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -65,22 +80,7 @@ async fn handle_status_request(conn: &mut ClientConnection<'_>) -> Result<()> {
         match conn.read_request().await {
             Ok(Request::Status { .. }) => {
                 let response = Response::Status {
-                    cluster_info: String::from(
-                        r#"{
-                    "version": {
-                        "name": "1.21.5",
-                        "protocol": 770
-                    },
-                    "players": {
-                        "max": 2,
-                        "online": 0,
-                        "sample": []
-                    },
-                    "description": {
-                        "text": "Rust Minecraft Server"
-                    }
-                }"#,
-                    ),
+                    cluster_info: SERVER_INFO.into(),
                 };
                 conn.send_response(response).await?;
             }
@@ -103,13 +103,13 @@ async fn handle_login_request(conn: &mut ClientConnection<'_>) -> Result<()> {
 
             if username != "wristylotus" {
                 conn.send_response(Response::LoginDisconnect {
-                    message: String::from(r#"{text: "I don't know you, fuck off!", color: "red"}"#),
+                    message: r#"{text: "I don't know you, fuck off!", color: "red"}"#.into(),
                 })
                 .await?;
             } else {
                 conn.send_response(Response::LoginSuccess {
                     uuid,
-                    username: String::from(username),
+                    username,
                 })
                 .await?;
             }

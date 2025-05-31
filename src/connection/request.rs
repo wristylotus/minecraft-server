@@ -1,43 +1,44 @@
 use super::{ClientConnection, ClientState};
+use crate::protocol::types::{MCString, VarInt};
 use anyhow::bail;
 use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum Request {
     Status {
-        packet_id: i32,
+        packet_id: VarInt,
     },
     Ping {
-        packet_id: i32,
+        packet_id: VarInt,
         timestamp: i64,
     },
     LoginStart {
-        packet_id: i32,
-        username: String,
+        packet_id: VarInt,
+        username: MCString,
         uuid: Uuid,
     },
     LoginAcknowledged {
-        packet_id: i32,
+        packet_id: VarInt,
     },
     ClientConfiguration {
-        packet_id: i32,
-        locale: String,
+        packet_id: VarInt,
+        locale: MCString,
         view_distance: i8,
-        chat_mode: i32,
+        chat_mode: VarInt,
         enable_chat_colors: bool,
         displayed_skin_parts: u8,
-        main_hand: i32,
+        main_hand: VarInt,
         enable_text_filtering: bool,
         allow_server_listings: bool,
-        particle_status: i32,
+        particle_status: VarInt,
     },
     PluginMessage {
-        packet_id: i32,
-        id: String,
-        data: String,
+        packet_id: VarInt,
+        id: MCString,
+        data: MCString,
     },
     AcknowledgeFinishConfiguration {
-        packet_id: i32,
+        packet_id: VarInt,
     },
 }
 
@@ -50,7 +51,7 @@ impl ReadRequest for ClientConnection<'_> {
     async fn read_request(&mut self) -> anyhow::Result<Request> {
         let packet_id = self.reader.packet_id().await?;
 
-        match (&self.state, packet_id) {
+        match (&self.state, packet_id.into()) {
             // Status
             (ClientState::Status, 0x00) => Ok(Request::Status { packet_id }),
             (ClientState::Status, 0x01) => Ok(Request::Ping {

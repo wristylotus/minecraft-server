@@ -1,11 +1,20 @@
 mod nbt;
-mod numbers;
+mod primitives;
 mod string;
 mod uuid;
 mod varint;
 
+pub trait ReadBuffer {
+    fn read(buf: &mut Bytes) -> anyhow::Result<Self>
+    where
+        Self: Sized;
+}
+
+pub trait WriteBuffer {
+    fn write(self, buf: &mut BytesMut) -> anyhow::Result<()>;
+}
+
+use bytes::{Bytes, BytesMut};
 pub use nbt::NBTString;
-pub use numbers::{I8, I64, U8, U16};
 pub use string::MCString;
-pub use uuid::UUID;
 pub use varint::VarInt;

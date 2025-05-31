@@ -1,12 +1,12 @@
 use crate::protocol::packet::Packet;
-use crate::protocol::types::{MCString, VarInt, I64, I8, U16, U8, UUID};
+use crate::protocol::types::{MCString, ReadBuffer, VarInt};
 use bytes::Bytes;
 use tokio::net::tcp::ReadHalf;
 use uuid::Uuid;
 
 pub struct ProtocolReader<'a> {
     stream: ReadHalf<'a>,
-    packet_id: i32,
+    packet_id: VarInt,
     packet_length: usize,
     data: Bytes,
 }
@@ -15,7 +15,7 @@ impl<'a> ProtocolReader<'a> {
     pub fn from_stream(stream: ReadHalf<'a>) -> anyhow::Result<ProtocolReader<'a>> {
         let reader = ProtocolReader {
             stream,
-            packet_id: -1,
+            packet_id: VarInt::default(),
             packet_length: 0,
             data: Bytes::default(),
         };
@@ -23,7 +23,7 @@ impl<'a> ProtocolReader<'a> {
         Ok(reader)
     }
 
-    pub async fn packet_id(&mut self) -> anyhow::Result<i32> {
+    pub async fn packet_id(&mut self) -> anyhow::Result<VarInt> {
         self.check_for_packet_end().await?;
         Ok(self.packet_id)
     }
@@ -33,7 +33,7 @@ impl<'a> ProtocolReader<'a> {
         Ok(self.packet_length)
     }
 
-    pub async fn read_varint(&mut self) -> anyhow::Result<i32> {
+    pub async fn read_varint(&mut self) -> anyhow::Result<VarInt> {
         self.check_for_packet_end().await?;
         let value = VarInt::read(&mut self.data)?;
 
@@ -42,40 +42,38 @@ impl<'a> ProtocolReader<'a> {
 
     pub async fn read_i8(&mut self) -> anyhow::Result<i8> {
         self.check_for_packet_end().await?;
-        let value = I8::read(&mut self.data)?;
-
-        Ok(value)
+        Ok(i8::read(&mut self.data)?)
     }
 
     pub async fn read_u8(&mut self) -> anyhow::Result<u8> {
         self.check_for_packet_end().await?;
-        let value = U8::read(&mut self.data)?;
+        let value = u8::read(&mut self.data)?;
 
         Ok(value)
     }
 
     pub async fn read_bool(&mut self) -> anyhow::Result<bool> {
         self.check_for_packet_end().await?;
-        let value = I8::read(&mut self.data)?;
+        let value = self.read_i8().await?;
 
         Ok(if value == 0 { false } else { true })
     }
 
     pub async fn read_u16(&mut self) -> anyhow::Result<u16> {
         self.check_for_packet_end().await?;
-        let value = U16::read(&mut self.data)?;
+        let value = u16::read(&mut self.data)?;
 
         Ok(value)
     }
 
     pub async fn read_i64(&mut self) -> anyhow::Result<i64> {
         self.check_for_packet_end().await?;
-        let value = I64::read(&mut self.data)?;
+        let value = i64::read(&mut self.data)?;
 
         Ok(value)
     }
 
-    pub async fn read_string(&mut self) -> anyhow::Result<String> {
+    pub async fn read_string(&mut self) -> anyhow::Result<MCString> {
         self.check_for_packet_end().await?;
         let value = MCString::read(&mut self.data)?;
 
@@ -84,7 +82,7 @@ impl<'a> ProtocolReader<'a> {
 
     pub async fn read_uuid(&mut self) -> anyhow::Result<Uuid> {
         self.check_for_packet_end().await?;
-        let value = UUID::read(&mut self.data)?;
+        let value = Uuid::read(&mut self.data)?;
 
         Ok(value)
     }

@@ -1,6 +1,6 @@
 mod packet;
 mod reader;
-mod types;
+pub mod types;
 mod writer;
 
 pub use reader::ProtocolReader;

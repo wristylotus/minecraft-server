@@ -1,3 +1,4 @@
+use crate::protocol::types::{MCString, VarInt};
 use crate::protocol::{ProtocolReader, ProtocolWriter};
 use anyhow::bail;
 use tokio::net::TcpStream;
@@ -15,16 +16,16 @@ pub enum ClientState {
 
 #[derive(Debug)]
 pub struct Handshake {
-    pub id: i32,
-    pub protocol_ver: i32,
-    pub host: String,
+    pub id: VarInt,
+    pub protocol_ver: VarInt,
+    pub host: MCString,
     pub port: u16,
     pub state: ClientState,
 }
 
 impl ClientState {
-    pub fn from(num: i32) -> anyhow::Result<ClientState> {
-        match num {
+    pub fn from(num: VarInt) -> anyhow::Result<ClientState> {
+        match num.into() {
             1 => Ok(ClientState::Status),
             2 => Ok(ClientState::Login),
             3 => Ok(ClientState::Play),
