@@ -1,5 +1,8 @@
 use anyhow::{bail, Result};
 use clap::Parser;
+use deadpool_redis::redis::AsyncCommands;
+use deadpool_redis::Runtime;
+use deadpool_redis::{Config as RedisConfig, Pool};
 use log::{error, info};
 use minecraft_server::connection::request::{ReadRequest, Request};
 use minecraft_server::connection::response::{Response, SendResponse};
@@ -13,6 +16,10 @@ struct Args {
     host: String,
     #[arg(long, default_value_t = 25565)]
     port: u16,
+    #[arg(long, default_value = "redis://localhost:6379")]
+    redis_url: String,
+    #[arg(long, default_value_t = 10)]
+    redis_pool_size: usize,
 }
 
 const SERVER_INFO: &str = r#"{
@@ -37,15 +44,24 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let (host, port) = (args.host, args.port);
 
+    let redis_pool = RedisConfig::from_url(args.redis_url)
+        .builder()?
+        .max_size(args.redis_pool_size)
+        .runtime(Runtime::Tokio1)
+        .build()?;
+
     let listener = TcpListener::bind(format!("{host}:{port}")).await?;
 
     loop {
         let (stream, addr) = listener.accept().await?;
+        let redis_pool = redis_pool.clone();
 
         tokio::spawn(async move {
             info!("Connection with: {}", addr);
 
-            if let Err(e) = handle_connection(stream).await {
+            let _: () = redis_pool.get().await.unwrap().set("test", "test").await.unwrap();
+
+            if let Err(e) = handle_connection(stream, redis_pool).await {
                 error!("Client: {}. Connection error: {}", addr, e);
             } else {
                 info!("Close connection with client: {}", addr);
@@ -54,11 +70,16 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn handle_connection(mut stream: TcpStream) -> Result<()> {
+async fn handle_connection(mut stream: TcpStream, redis_pool: Pool) -> Result<()> {
     let mut conn = ClientConnection::new(&mut stream)?;
 
     let handshake = conn.handshake().await?;
     info!("{:?}", handshake);
+
+    {
+        let mut conn = redis_pool.get().await?;
+        let _: () = conn.set("test", "test").await?;
+    }
 
     loop {
         match &conn.state {
@@ -107,11 +128,7 @@ async fn handle_login_request(conn: &mut ClientConnection<'_>) -> Result<()> {
                 })
                 .await?;
             } else {
-                conn.send_response(Response::LoginSuccess {
-                    uuid,
-                    username,
-                })
-                .await?;
+                conn.send_response(Response::LoginSuccess { uuid, username }).await?;
             }
         }
         Ok(Request::LoginAcknowledged { .. }) => {

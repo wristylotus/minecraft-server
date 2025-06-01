@@ -1,0 +1,32 @@
+services:
+  redis:
+    container_name: "redis"
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 30s
+      retries: 50
+    restart: always
+
+  minecraft-server:
+    container_name: "minecraft-server"
+    depends_on:
+      - "redis"
+    image: "minecraft-server"
+    build: .
+    command:
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "25565"
+      - "--redis-url"
+      - "redis://redis:6379/"
+    ports:
+      - "25565:25565"
+    environment:
+      - "RUST_LOG=debug"
+    restart: always
+
