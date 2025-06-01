@@ -6,7 +6,8 @@ use deadpool_redis::{Config as RedisConfig, Pool};
 use log::{error, info};
 use minecraft_server::connection::request::{ReadRequest, Request};
 use minecraft_server::connection::response::{Response, SendResponse};
-use minecraft_server::connection::{ClientConnection, ClientState};
+use minecraft_server::connection::ClientConnection;
+use minecraft_server::protocol::types::enums::ClientState;
 use tokio::net::{TcpListener, TcpStream};
 
 #[derive(Parser, Debug)]
@@ -40,7 +41,7 @@ const SERVER_INFO: &str = r#"{
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    
+
     let args = Args::parse();
     let (host, port) = (args.host, args.port);
 

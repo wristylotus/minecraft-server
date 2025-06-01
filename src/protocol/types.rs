@@ -1,3 +1,4 @@
+pub mod enums;
 mod nbt;
 mod primitives;
 mod string;
@@ -16,5 +17,5 @@ pub trait WriteBuffer {
 
 use bytes::{Bytes, BytesMut};
 pub use nbt::NBTString;
-pub use string::MCString;
+pub use string::{Identifier, MCString};
 pub use varint::VarInt;

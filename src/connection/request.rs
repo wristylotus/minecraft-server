@@ -1,4 +1,5 @@
 use super::{ClientConnection, ClientState};
+use crate::protocol::types::enums::{ChatMode, Hand, ParticleStatus};
 use crate::protocol::types::{MCString, VarInt};
 use anyhow::bail;
 use uuid::Uuid;
@@ -24,13 +25,13 @@ pub enum Request {
         packet_id: VarInt,
         locale: MCString,
         view_distance: i8,
-        chat_mode: VarInt,
+        chat_mode: ChatMode,
         enable_chat_colors: bool,
-        displayed_skin_parts: u8,
-        main_hand: VarInt,
+        displayed_skin_parts: u8, //TODO parse bit mask
+        main_hand: Hand,
         enable_text_filtering: bool,
         allow_server_listings: bool,
-        particle_status: VarInt,
+        particle_status: ParticleStatus,
     },
     PluginMessage {
         packet_id: VarInt,
@@ -76,13 +77,13 @@ impl ReadRequest for ClientConnection<'_> {
                 packet_id,
                 locale: self.reader.read_string().await?,
                 view_distance: self.reader.read_i8().await?,
-                chat_mode: self.reader.read_varint().await?,
+                chat_mode: self.reader.read_varint().await?.into(),
                 enable_chat_colors: self.reader.read_bool().await?,
                 displayed_skin_parts: self.reader.read_u8().await?,
-                main_hand: self.reader.read_varint().await?,
+                main_hand: self.reader.read_varint().await?.into(),
                 enable_text_filtering: self.reader.read_bool().await?,
                 allow_server_listings: self.reader.read_bool().await?,
-                particle_status: self.reader.read_varint().await?,
+                particle_status: self.reader.read_varint().await?.into(),
             }),
             (ClientState::Configuration, 0x02) => Ok(Request::PluginMessage {
                 packet_id,

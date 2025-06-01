@@ -1,3 +1,4 @@
+use crate::protocol::types::enums::ClientState;
 use crate::protocol::types::{MCString, VarInt};
 use crate::protocol::{ProtocolReader, ProtocolWriter};
 use anyhow::bail;
@@ -6,14 +7,6 @@ use tokio::net::TcpStream;
 pub mod request;
 pub mod response;
 
-#[derive(PartialEq, Debug, Copy, Clone)]
-pub enum ClientState {
-    Status,
-    Login,
-    Configuration,
-    Play,
-}
-
 #[derive(Debug)]
 pub struct Handshake {
     pub id: VarInt,
@@ -21,17 +14,6 @@ pub struct Handshake {
     pub host: MCString,
     pub port: u16,
     pub state: ClientState,
-}
-
-impl ClientState {
-    pub fn from(num: VarInt) -> anyhow::Result<ClientState> {
-        match num.into() {
-            1 => Ok(ClientState::Status),
-            2 => Ok(ClientState::Login),
-            3 => Ok(ClientState::Play),
-            _ => bail!("Unknown handshake client state: {}", num),
-        }
-    }
 }
 
 pub struct ClientConnection<'a> {
@@ -60,7 +42,7 @@ impl<'a> ClientConnection<'a> {
                 protocol_ver: self.reader.read_varint().await?,
                 host: self.reader.read_string().await?,
                 port: self.reader.read_u16().await?,
-                state: ClientState::from(self.reader.read_varint().await?)?,
+                state: self.reader.read_varint().await?.into(),
             };
             self.state = handshake.state;
 

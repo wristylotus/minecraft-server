@@ -3,6 +3,8 @@ use bytes::{Bytes, BytesMut};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter, Write};
 
+pub type Identifier = MCString;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MCString(Cow<'static, str>);
 
