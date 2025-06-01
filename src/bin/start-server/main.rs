@@ -40,7 +40,7 @@ const SERVER_INFO: &str = r#"{
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
-
+    
     let args = Args::parse();
     let (host, port) = (args.host, args.port);
 

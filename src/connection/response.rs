@@ -8,8 +8,12 @@ pub enum Response {
     LoginPong { timestamp: i64 },
     LoginSuccess { uuid: Uuid, username: MCString },
     LoginDisconnect { message: MCString },
+    // LoginPlay {
+    //     
+    // },
     ConfigurationDisconnect { message: MCString },
     ConfigurationFinish,
+    
 }
 
 pub trait SendResponse {
