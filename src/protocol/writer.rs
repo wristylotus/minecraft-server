@@ -10,12 +10,12 @@ pub struct ProtocolWriter<'a> {
 
 impl<'a> ProtocolWriter<'a> {
     pub fn from_stream(stream: WriteHalf<'a>) -> anyhow::Result<ProtocolWriter<'a>> {
-        let reader = ProtocolWriter {
+        let writer = ProtocolWriter {
             stream,
             buf: BytesMut::default(),
         };
 
-        Ok(reader)
+        Ok(writer)
     }
 
     pub fn write<T>(&mut self, value: T) -> anyhow::Result<()>

@@ -1,6 +1,6 @@
 use super::ClientConnection;
 use crate::protocol::types::enums::GameMode;
-use crate::protocol::types::{Identifier, MCString, VarInt};
+use crate::protocol::types::{Identifier, MCString, Position, VarInt};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -37,7 +37,7 @@ pub enum Response {
         is_flat: bool,
         has_death_location: bool,
         death_dimension_name: Option<Identifier>,
-        death_location: Option<(f64, f64, f64)>, //TODO Position type,
+        death_location: Option<Position>,
         portal_cooldown: VarInt,
         sea_level: VarInt,
         enforces_secure_chat: bool,
@@ -96,7 +96,7 @@ impl SendResponse for ClientConnection<'_> {
             } => {
                 self.writer.write(entity_id)?;
                 self.writer.write(is_hardcore)?;
-                //TODO self.writer.write(dimension_names)?;
+                self.writer.write(dimension_names)?;
                 self.writer.write(max_players)?;
                 self.writer.write(view_distance)?;
                 self.writer.write(simulation_distance)?;
@@ -111,13 +111,16 @@ impl SendResponse for ClientConnection<'_> {
                 self.writer.write(is_debug)?;
                 self.writer.write(is_flat)?;
                 self.writer.write(has_death_location)?;
-                //TODO self.writer.write(death_dimension_name)?;
-                //TODO self.writer.write(death_location)?;
+                if let Some(death_dimension_name) = death_dimension_name {
+                    self.writer.write(death_dimension_name)?;
+                }
+                if let Some(death_location) = death_location {
+                    self.writer.write(death_location)?;
+                }
                 self.writer.write(portal_cooldown)?;
                 self.writer.write(sea_level)?;
                 self.writer.write(enforces_secure_chat)?;
 
-                todo!();
                 self.writer.send_packet(0x2B.into()).await
             }
             Response::LoginDisconnect { message } => {

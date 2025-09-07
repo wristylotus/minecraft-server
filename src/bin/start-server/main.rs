@@ -7,7 +7,7 @@ use log::{error, info};
 use minecraft_server::connection::request::{ReadRequest, Request};
 use minecraft_server::connection::response::{Response, SendResponse};
 use minecraft_server::connection::ClientConnection;
-use minecraft_server::protocol::types::enums::ClientState;
+use minecraft_server::protocol::types::enums::{ClientState, GameMode};
 use tokio::net::{TcpListener, TcpStream};
 
 #[derive(Parser, Debug)]
@@ -147,12 +147,42 @@ async fn handle_configuration_request(conn: &mut ClientConnection<'_>) -> Result
     match conn.read_request().await {
         Ok(req @ Request::ClientConfiguration { .. }) => {
             info!("{:?}", req);
+
+            // TODO https://minecraft.wiki/w/Java_Edition_protocol/Registry_data
+
             conn.send_response(Response::ConfigurationFinish).await?;
         }
         Ok(req @ Request::PluginMessage { .. }) => {
             info!("{:?}", req);
         }
         Ok(Request::AcknowledgeFinishConfiguration { .. }) => {
+            conn.send_response(Response::LoginPlay {
+                entity_id: 777,
+                is_hardcore: false,
+                dimension_names: vec!["minecraft:overworld".into()],
+                max_players: 2.into(),
+                simulation_distance: 8.into(),
+                reduced_debug_info: false,
+                view_distance: 8.into(),
+                enable_respawn_screen: true,
+                do_limited_crafting: false,
+                dimension_type: 0.into(),
+                dimension_name: "minecraft:overworld".into(),
+                hashed_seed: 0.into(),
+                game_mode: GameMode::Adventure,
+                previous_game_mode: GameMode::Undefined,
+                is_debug: true,
+                is_flat: true,
+                has_death_location: false,
+                death_dimension_name: None,
+                death_location: None,
+                portal_cooldown: 0.into(),
+                sea_level: 63.into(),
+                enforces_secure_chat: false,
+            })
+            .await?;
+
+            //TODO Generate world
             conn.state = ClientState::Play;
         }
         Ok(req) => bail!("Request '{:?}' not expected in Configuration state", req),
@@ -163,9 +193,8 @@ async fn handle_configuration_request(conn: &mut ClientConnection<'_>) -> Result
 }
 
 async fn handle_play_request(conn: &mut ClientConnection<'_>) -> Result<()> {
-    //TODO Generate world
     match conn.read_request().await {
-        Ok(req) => bail!("Request '{:?}' not expected in Configuration state", req),
+        Ok(req) => bail!("Request '{:?}' not expected in Play state", req),
         Err(err) => bail!(err),
     }
 }
